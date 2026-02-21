@@ -3,7 +3,7 @@ using UnityEngine;
 public class movement : MonoBehaviour
 {
     Rigidbody rb;
-    
+    public float force = 40f;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -11,14 +11,15 @@ public class movement : MonoBehaviour
     }
 
     // Update is called once per frame
-    void Update()
-    {
-        if (Input.GetKey(KeyCode.A)) 
-        {
-            rb.AddForce(transform.up);
-        
-        
-        }
+    public float moveCooldown = 0.5f;
+    private float lastMoveTime;
 
+    void FixedUpdate()
+    {
+        if (Input.GetKeyDown(KeyCode.A) && Time.time > lastMoveTime)
+        {
+            rb.AddForce(Vector3.left * force, ForceMode.Impulse);
+            lastMoveTime = Time.time;
+        }
     }
 }
