@@ -3,28 +3,28 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class CanController : MonoBehaviour
 {
-    [Header("Movement (A=+Z, D=-Z | W=+X, S=-X)")]
+    [Header("Ground Movement")]
     public float kickForce = 12f;
     public float torqueForce = 8f;
     public float jumpForce = 7f;
     public float maxSpeed = 25f;
-
-    [Header("Spam & Cooldown")]
     public float moveCooldown = 0.12f;
-    private float nextMoveTime;
+
+    [Header("Air Movement (Ground-Like)")]
+    public float airPushForce = 12f;
+    public float airTorqueForce = 8f; // Now it will rotate in the air!
 
     [Header("Can Physics Customization")]
-    [Tooltip("Offset for the push. Y > 0 makes the can tumble/flop.")]
     public Vector3 kickOffset = new Vector3(0, 0.8f, 0);
     public ForceMode moveMode = ForceMode.Impulse;
 
     private Rigidbody rb;
     private bool isGrounded;
+    private float nextMoveTime;
 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-        // Drag settings help the can 'settle' after tumbling
         rb.linearDamping = 0.8f;
         rb.angularDamping = 0.8f;
     }
@@ -46,34 +46,38 @@ public class CanController : MonoBehaviour
     {
         Vector3 inputDir = Vector3.zero;
 
-        // A/D mapped to Z-axis (A is now the "Forward/Larger Z" key)
-        if (Input.GetKey(KeyCode.A)) inputDir += Vector3.forward; // Increases Z
-        if (Input.GetKey(KeyCode.D)) inputDir += Vector3.back;    // Decreases Z
-
-        // W/S mapped to X-axis
-        if (Input.GetKey(KeyCode.W)) inputDir += Vector3.right;   // Increases X
-        if (Input.GetKey(KeyCode.S)) inputDir += Vector3.left;    // Decreases X
+        if (Input.GetKey(KeyCode.A)) inputDir += Vector3.forward;
+        if (Input.GetKey(KeyCode.D)) inputDir += Vector3.back;
+        if (Input.GetKey(KeyCode.W)) inputDir += Vector3.right;
+        if (Input.GetKey(KeyCode.S)) inputDir += Vector3.left;
 
         if (inputDir != Vector3.zero)
         {
-            // Speed cap to keep the physics stable while spamming
-            if (rb.linearVelocity.magnitude < maxSpeed)
-            {
-                ApplyCanPhysics(inputDir.normalized);
-            }
-
+            ApplyCanPhysics(inputDir.normalized);
             nextMoveTime = Time.time + moveCooldown;
         }
     }
 
     void ApplyCanPhysics(Vector3 dir)
     {
-        // AddForceAtPosition makes it "flop" because the push point is offset from the center
-        rb.AddForceAtPosition(dir * kickForce, transform.position + kickOffset, moveMode);
+        if (rb.linearVelocity.magnitude > maxSpeed) return;
 
-        // This adds a rolling torque perpendicular to the movement direction
+        // Common Torque calculation for both ground and air
         Vector3 rollAxis = new Vector3(dir.z, 0, -dir.x);
-        rb.AddTorque(rollAxis * torqueForce, moveMode);
+
+        if (isGrounded)
+        {
+            // GROUND: Standard "kick" with offset to make it flop/tumble
+            rb.AddForceAtPosition(dir * kickForce, transform.position + kickOffset, moveMode);
+            rb.AddTorque(rollAxis * torqueForce, moveMode);
+        }
+        else
+        {
+            // AIR: Directional push (from center) + Pure Torque (spinning)
+            // This moves the can forward AND rotates it without the "lever" effect
+            rb.AddForce(dir * airPushForce, moveMode);
+            rb.AddTorque(rollAxis * airTorqueForce, moveMode);
+        }
     }
 
     void Jump()
@@ -84,7 +88,6 @@ public class CanController : MonoBehaviour
 
     private void OnCollisionStay(Collision col)
     {
-        // Simple ground check based on the angle of the surface hit
         if (col.contacts[0].normal.y > 0.4f) isGrounded = true;
     }
 
